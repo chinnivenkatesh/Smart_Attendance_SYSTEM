@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Face Recognition Attendance System</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Segoe UI', sans-serif; background: #7c4dff; color: #333; }
+    header { background: #673ab7; color: white; padding: 20px; text-align: center; }
+    nav {
+      display: flex; justify-content: center; gap: 15px;
+      padding: 15px; background: #ede7f6; border-bottom: 1px solid #ccc;
+    }
+    nav button {
+      padding: 10px 20px; border: none; border-radius: 8px;
+      cursor: pointer; background: #d1c4e9; font-weight: bold;
+      transition: all 0.3s ease;
+    }
+    nav button.active, nav button:hover { background: #9575cd; color: white; }
+    .container {
+      max-width: 1000px; margin: 30px auto; background: white;
+      border-radius: 16px; padding: 40px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+    }
+    h2 { text-align: center; margin-bottom: 30px; }
+    .card-container {
+      display: flex; justify-content: space-around; gap: 20px; flex-wrap: wrap;
+    }
+    .card {
+      background: #f3f1fe; padding: 20px; border-radius: 12px;
+      flex: 1 1 30%; text-align: center;
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+    }
+    label, input, select, button {
+      display: block; width: 100%; margin-top: 15px; font-size: 16px;
+    }
+    input, select {
+      padding: 10px; border: 1px solid #ccc; border-radius: 6px;
+    }
+    button.submit-btn {
+      padding: 12px; background: #673ab7; color: white;
+      cursor: pointer; font-weight: bold; border: none;
+      border-radius: 6px; transition: background 0.3s ease;
+    }
+    button.submit-btn:hover { background: #5e35b1; }
+    table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+    th, td {
+      border: 1px solid #ccc; padding: 12px; text-align: center;
+    }
+    th { background-color: #f1f1f1; }
+    .status-late {
+      background: #ffecb3; color: #ffa000;
+      padding: 5px 10px; border-radius: 8px;
+    }
+    .status-present {
+      background: #c8e6c9; color: #388e3c;
+      padding: 5px 10px; border-radius: 8px;
+    }
+    .export-btn { background: #4caf50; color: white; margin-top: 20px; }
+    .section { display: none; }
+    .section.active { display: block; }
+    .scrollable-table {
+  max-height: 150px;   /* Set the scroll height */
+  overflow-y: auto;
+  overflow-x: hidden;
+  border: 1px solid #ccc;
+  margin-top: 20px;
+}
+
+.scrollable-table table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.scrollable-table th, .scrollable-table td {
+  border: 1px solid #ccc;
+  padding: 12px;
+  text-align: center;
+  background-color: white;
+}
+
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Face Recognition Attendance System</h1>
+    <p>Effortlessly track attendance with facial recognition</p>
+  </header>
+
+  <nav>
+    <button onclick="showSection('home')" id="btn-home" >Home</button>
+    <button onclick="showSection('register')" id="btn-register">Register</button>
+    <button onclick="showSection('attendance')" id="btn-attendance">Give Attendance</button>
+    <button onclick="showSection('logs')" id="btn-logs">Check Attendance</button>
+  </nav>
+
+  <div class="container">
+    <div id="home" class="section active">
+      <h2>Welcome to Face Recognition Attendance System</h2>
+      <div class="card-container">
+        <div class="card"><h3>Register</h3><p>Register new users with facial recognition.</p></div>
+        <div class="card"><h3>Give Attendance</h3><p>Mark attendance in real-time.</p></div>
+        <div class="card"><h3>Check Attendance</h3><p>View and export attendance records.</p></div>
+      </div>
+    </div>
+
+    <div id="register" class="section">
+      <h2>Register New User</h2>
+      <video id="register-webcam" autoplay playsinline style="width:100%; height:auto; border-radius: 12px; margin-bottom: 20px;"></video>
+      <label for="name">Full Name</label>
+      <input type="text" id="name" placeholder="Enter full name">
+      <button id="register-btn" class="submit-btn">📷 Register User</button>
+    </div>
+
+    <div id="attendance" class="section">
+      <h2>Mark Attendance</h2>
+      <video id="attendance-webcam" autoplay playsinline style="width:100%; height:auto; border-radius: 12px; margin-bottom: 20px;"></video>
+      <div style="background: #f3f1fe; height: 100px; border-radius: 12px; margin-bottom: 20px;">
+        <p style="text-align: center; padding-top: 30px;" id="recognition-status">⏳ Scanning face...</p>
+      </div>
+    </div>
+
+    <div id="logs" class="section">
+      <h2>Attendance Records</h2>
+      <label for="date">Date</label>
+      <input type="date" id="date">
+      <label for="filter-name">Name</label>
+      <input type="text" id="filter-name" placeholder="Filter by name">
+      
+      <div class="scrollable-table">
+      <table>
+    <thead>
+      <tr>
+        <th>DATE</th>
+        <th>TIME</th>
+        <th>NAME</th>
+      </tr>
+    </thead>
+    <tbody id="logs-body">
+      <!-- Attendance rows will be loaded here -->
+    </tbody>
+  </table>
+</div>
+      <button onclick="downloadCSV()" class="export-btn submit-btn">⬇ Download Full Attendance (CSV)</button>
+
+    </div>
+  </div>
+
+<script>
+  let scanning = false;
+  let retryInterval;
+  let stream;
+
+  function showSection(id) {
+    document.querySelectorAll('.section').forEach(section => section.classList.remove('active'));
+    document.getElementById(id).classList.add('active');
+    document.querySelectorAll('nav button').forEach(btn => btn.classList.remove('active'));
+    document.getElementById('btn-' + id).classList.add('active');
+
+    stopCamera();
+
+    if (id === 'register') startCamera('register-webcam');
+    else if (id === 'attendance') {
+      startCamera('attendance-webcam');
+      startRecognitionCycle();
+      disableNavTemporarily(60000); // Lock nav for 60 sec
+    }else if (id === 'logs') {
+    loadFilteredLogs(); // This loads the latest 3 logs
+  }
+  }
+
+  function disableNavTemporarily(duration) {
+    document.querySelectorAll('nav button').forEach(btn => btn.disabled = true);
+    setTimeout(() => {
+      if (document.getElementById('attendance').classList.contains('active')) {
+        document.querySelectorAll('nav button').forEach(btn => btn.disabled = false);
+      }
+    }, duration);
+  }
+
+  function startCamera(videoId) {
+    const video = document.getElementById(videoId);
+    navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" } })
+      .then((s) => {
+        video.srcObject = s;
+        stream = s;
+      })
+      .catch((err) => alert("Camera error: " + err));
+  }
+
+  function stopCamera() {
+    if (stream) {
+      stream.getTracks().forEach(track => track.stop());
+      stream = null;
+    }
+    scanning = false;
+    clearInterval(retryInterval);
+  }
+function loadFilteredLogs() {
+  const name = document.getElementById("filter-name").value.trim();
+  const rawDate = document.getElementById("date").value;
+
+  // Convert YYYY-MM-DD to DD/MM/YYYY
+  let formattedDate = "";
+  if (rawDate) {
+    const parts = rawDate.split("-");
+    formattedDate = `${parts[2]}/${parts[1]}/${parts[0]}`; // DD/MM/YYYY
+  }
+
+  let url = "http://127.0.0.1:5000/filter-attendance?";
+  if (name) url += `name=${encodeURIComponent(name)}&`;
+  if (formattedDate) url += `date=${encodeURIComponent(formattedDate)}`;
+
+  fetch(url)
+    .then(res => res.json())
+    .then(data => {
+      const tbody = document.getElementById("logs-body");
+      tbody.innerHTML = "";
+
+      if (data.status === "success") {
+        if (data.data.length === 0) {
+          tbody.innerHTML = `<tr><td colspan="3">No matching records found.</td></tr>`;
+        } else {
+          data.data.forEach(entry => {
+            const row = document.createElement("tr");
+            row.innerHTML = `
+              <td>${entry.date}</td>
+              <td>${entry.time}</td>
+              <td>${entry.name}</td>
+            `;
+            tbody.appendChild(row);
+          });
+        }
+      } else {
+        tbody.innerHTML = `<tr><td colspan="3">Error loading logs.</td></tr>`;
+      }
+    });
+}
+
+document.getElementById("filter-name").addEventListener("input", loadFilteredLogs);
+document.getElementById("date").addEventListener("change", loadFilteredLogs);
+
+
+  function startRecognitionCycle() {
+    scanning = true;
+    retryInterval = setInterval(() => {
+      if (scanning) captureAttendanceImage();
+    }, 5000);
+  }
+
+  function captureAttendanceImage() {
+  const video = document.getElementById("attendance-webcam");
+  const canvas = document.createElement("canvas");
+  canvas.width = 640;
+  canvas.height = 480;
+  canvas.getContext("2d").drawImage(video, 0, 0, canvas.width, canvas.height);
+  const imageData = canvas.toDataURL("image/jpeg");
+
+  fetch("http://127.0.0.1:5000/mark-attendance", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ image: imageData })
+  })
+    .then(res => res.json())
+    .then(data => {
+      const status = document.getElementById("recognition-status");
+
+      if (data.status === "success") {
+        scanning = false;
+        clearInterval(retryInterval);
+
+        // Show message for 10 seconds, stay on same page
+        status.innerHTML = `<span style="color:green; font-size:18px; font-weight:bold;">
+          ✅ Attendance marked for ${data.name}<br>📅 ${data.date} 🕒 ${data.time}
+        </span>`;
+
+        setTimeout(() => {
+          status.innerHTML = "⏳ Ready for next person...";
+          scanning = true;
+          startRecognitionCycle();
+        }, 10000); // 10 seconds delay to show success message
+      } else {
+        status.innerHTML = `<span style="color:red; font-weight:bold;">
+          ❌ Face not recognized. Trying again...
+        </span>`;
+        setTimeout(() => {
+          status.innerHTML = "⏳ Scanning face...";
+        }, 4000);
+      }
+    })
+    .catch(err => {
+      const status = document.getElementById("recognition-status");
+      status.innerHTML = `<span style="color:red;">⚠️ Error: ${err.message}</span>`;
+    });
+}
+
+
+  document.getElementById("register-btn").addEventListener("click", () => {
+    const video = document.getElementById("register-webcam");
+    const name = document.getElementById("name").value.trim();
+    if (!name) return alert("Please enter a name");
+
+    const canvas = document.createElement("canvas");
+    canvas.width = 640;
+    canvas.height = 480;
+    canvas.getContext("2d").drawImage(video, 0, 0, canvas.width, canvas.height);
+    const imageData = canvas.toDataURL("image/jpeg");
+
+    fetch("http://127.0.0.1:5000/register", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: name, image: imageData })
+    })
+      .then(res => res.json())
+      .then(data => alert(data.message))
+      .catch(err => alert("Error: " + err));
+  });
+  function downloadCSV() {
+  window.open("http://127.0.0.1:5000/download-csv", "_blank");
+}
+
+  // Load home section by default on first load
+window.onload = function () {
+  showSection('home');
+};
+
+</script>
+</body>
+</html>
